@@ -1,159 +1,101 @@
 \documentclass[12pt,a4paper]{article}
-
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[brazilian]{babel}
 \usepackage{geometry}
 \usepackage{hyperref}
-
 \geometry{margin=2.5cm}
-
 \title{Núcleo de Situação de Saúde (NSS)\\Sprint 2 -- Planejamento}
 \author{Zadoque Pires de Deus Souza Carneiro}
 \date{Agosto de 2026}
-
 \begin{document}
-
 \maketitle
 
-\section{Objetivo da Sprint 2}
+\section{Ponto de partida}
+A Sprint 2 parte de uma Sprint 1 funcional. Já existe ingestão real do SINAN via PySUS, pipeline Bronze--Silver--Gold, persistência em Parquet, API FastAPI, Docker Compose e um protótipo de front-end. Portanto, a Sprint 2 não deve repetir a infraestrutura básica nem voltar a colocar downloads do SINAN dentro das requisições do dashboard.
 
-A Sprint~2 tem como objetivo principal sair do esqueleto e avançar para uma
-primeira versão funcional de ponta a ponta, agora sobre a base de
-infraestrutura definida na Sprint~1 (Docker Compose e flake Nix), capaz de:
+\section{Objetivo}
+Transformar o protótipo em uma primeira versão efetivamente geográfica do dashboard, permitindo navegar de Brasil/UF para municípios e consultar períodos de interesse com desempenho previsível.
 
+\section{Atividade 1 -- Dimensão geográfica IBGE}
 \begin{itemize}
-  \item Executar a pipeline Bronze--Silver--Gold para pelo menos uma doença
-        (por exemplo, dengue em 2026), gerando tabelas agregadas compatíveis
-        com a API.
-  \item Integrar efetivamente a API FastAPI com os arquivos Parquet da camada
-        Gold, retornando dados reais para os endpoints de heatmap.
-  \item Evoluir o front-end para uma visualização mais próxima do mapa de
-        calor desejado, iniciando o uso de malhas geográficas oficiais.
+\item Adquirir a malha territorial oficial do IBGE para UFs e municípios.
+\item Manter o código IBGE de UF e município como chave de integração.
+\item Criar uma dimensão territorial que forneça nome do município e geometria.
+\item Validar que \texttt{ID\_MUNICIP} da Silver corresponde ao código municipal de sete dígitos usado pela malha.
 \end{itemize}
 
-\section{Atividades planejadas}
+Essa atividade resolve uma limitação deixada explicitamente na Sprint 1: \texttt{nm\_mun} não será preenchido por inferência ou por uma tabela informal, mas por uma fonte territorial oficial.
 
-\subsection{Integração da pipeline Bronze--Silver--Gold}
-
+\section{Atividade 2 -- Mapa de calor}
 \begin{itemize}
-  \item \textbf{Bronze}: incorporar os scripts de ingestão existentes (via
-        PySUS) ao repositório, organizando-os em um pacote Python dentro do
-        diretório \texttt{back-end/} (ou em uma pasta dedicada
-        \texttt{data-pipeline/}), garantindo que possam ser executados tanto
-        dentro do container do back-end quanto em ambiente local/Nix.
-  \item \textbf{Silver}: adaptar os scripts genéricos de Silver para seguir a
-        convenção de colunas definida na Sprint~1, incluindo normalização de
-        códigos de município/UF e deduplicação de registros.
-  \item \textbf{Gold}: implementar um agregador que, a partir da Silver,
-        produza tabelas com colunas \texttt{disease\_code}, \texttt{year},
-        \texttt{month}, \texttt{cd\_uf}, \texttt{nm\_uf}, \texttt{cd\_mun},
-        \texttt{nm\_mun} e \texttt{cases\_total}, salvando em Parquet na
-        estrutura \texttt{gold/sinan/...}, compatível com o volume mapeado no
-        Docker Compose.
-  \item Automatizar, quando possível, a execução dessas etapas, por exemplo,
-        adicionando comandos no \texttt{Makefile}, scripts de linha de comando
-        ou serviços específicos no \texttt{docker-compose.yml} (como um
-        container \texttt{worker} responsável pela pipeline).
+\item Substituir a tabela do protótipo por React ou outra solução adequada ao time.
+\item Integrar Leaflet ou MapLibre.
+\item Carregar GeoJSON das UFs.
+\item Fazer join entre \texttt{cd\_uf} retornado pela API e a propriedade equivalente do GeoJSON.
+\item Aplicar escala de intensidade baseada em \texttt{cases\_total}.
+\item Mostrar doença, período e quantidade no hover.
+\item Permitir click em uma UF para carregar os municípios daquela UF.
 \end{itemize}
 
-\subsection{Integração da API com os dados Gold}
-
+\section{Atividade 3 -- Períodos}
+A API atual trabalha com ano e mês. Na Sprint 2 devem ser adicionados filtros para:
 \begin{itemize}
-  \item Ajustar as funções de leitura da camada Gold em
-        \texttt{app/main.py} para utilizar os arquivos produzidos pela
-        pipeline, garantindo que o caminho interno (\texttt{/app/gold}) seja
-        consistente com o volume configurado no Docker Compose.
-  \item Garantir que os endpoints \texttt{/heatmap/uf} e
-        \texttt{/heatmap/municipios} utilizem efetivamente as colunas
-        \texttt{year}, \texttt{month}, \texttt{cd\_uf}, \texttt{cd\_mun} e
-        \texttt{cases\_total} para filtrar e agregar os dados.
-  \item Adicionar testes básicos (unitários ou de integração) para validar o
-        comportamento da API quando existem dados e quando a tabela está
-        vazia, preferencialmente executáveis tanto em ambiente local quanto
-        dentro do container.
-  \item Documentar, no \texttt{README.md}, exemplos de chamadas reais à API
-        com dados de dengue, incluindo exemplos com \texttt{curl} e
-        chamadas a partir do front-end.
+\item mês/ano;
+\item intervalo \texttt{start\_date}/\texttt{end\_date};
+\item últimos 30 dias.
+\end{itemize}
+A Gold deverá ser ajustada se necessário para permitir essas consultas sem obrigar a API a reler a Bronze ou a Silver.
+
+\section{Atividade 4 -- Qualidade e testes}
+\begin{itemize}
+\item Testar transformação de datas e códigos.
+\item Testar deduplicação da Silver.
+\item Testar agregação da Gold.
+\item Testar \texttt{/heatmap/uf} e \texttt{/heatmap/municipios} com dados controlados.
+\item Testar comportamento quando uma doença/ano ainda não foi processada.
+\item Adicionar testes de integração do Docker Compose.
 \end{itemize}
 
-\subsection{Evolução do front-end}
-
+\section{Atividade 5 -- Pipeline e operação}
 \begin{itemize}
-  \item Substituir (ou complementar) o protótipo estático atual por uma
-        aplicação web mais estruturada, preferencialmente utilizando React ou
-        outra biblioteca com a qual o time tenha familiaridade, mantendo a
-        possibilidade de servir a aplicação via Docker Compose.
-  \item Integrar uma biblioteca de mapas (por exemplo, Leaflet ou MapLibre)
-        para exibir um mapa do Brasil com as UFs.
-  \item Realizar o \emph{join} entre os dados retornados pelo endpoint
-        \texttt{/heatmap/uf} e a malha geográfica, aplicando uma escala de
-        cores para representar a intensidade dos casos (mapa de calor).
-  \item Implementar interação básica: \emph{hover} para mostrar o número de
-        casos de uma UF e \emph{click} para navegar para o nível de
-        municípios daquela UF (mesmo que o mapa em nível municipal ainda seja
-        simplificado nesta sprint).
-  \item Garantir que o front-end possa ser executado tanto via
-        \texttt{docker-compose.yml} quanto em ambiente local (por exemplo,
-        com \texttt{npm run dev}), alinhando as instruções no \texttt{README}.
+\item Adicionar comando documentado para processar múltiplos anos.
+\item Avaliar um worker separado caso o volume de ingestão aumente.
+\item Criar política de batches e retenção.
+\item Registrar falhas de ingestão sem apagar o último batch válido.
+\item Considerar execução agendada posteriormente, mas manter ingestão e API desacopladas.
 \end{itemize}
 
-\subsection{Malhas geográficas e códigos IBGE}
-
+\section{Atividade 6 -- API}
 \begin{itemize}
-  \item Baixar as malhas territoriais oficiais do IBGE (UFs e municípios) no
-        formato apropriado (Shapefile ou GeoJSON).
-  \item Garantir a consistência entre os códigos de município/UF usados na
-        pipeline Silver/Gold e os códigos presentes nas malhas.
-  \item Preparar arquivos GeoJSON simplificados (por exemplo, com redução de
-        resolução) para uso eficiente no front-end, considerando o tamanho dos
-        assets que serão servidos pelo container de front-end.
-\end{itemize}
-
-\subsection{Aprimoramentos no flake Nix}
-
-\begin{itemize}
-  \item Evoluir o \texttt{flake.nix} para definir \emph{devShells} específicos
-        para back-end e front-end, incluindo ferramentas como \texttt{uvicorn},
-        \texttt{pytest}, \texttt{node} e \texttt{npm} quando necessário.
-  \item Adicionar \emph{packages} ou \emph{apps} que permitam comandos como
-        \texttt{nix run .#api} para subir a API localmente, facilitando o
-        desenvolvimento em NixOS.
+\item Padronizar modelos de resposta com Pydantic.
+\item Adicionar paginação quando a consulta municipal exigir.
+\item Adicionar endpoint de metadados da fonte/processamento.
+\item Avaliar DuckDB para consultas Parquet mais eficientes antes de introduzir um banco de dados.
 \end{itemize}
 
 \section{Critérios de aceitação}
+A Sprint 2 será considerada concluída quando:
+\begin{enumerate}
+\item uma doença real processada pelo PySUS puder ser visualizada no mapa por UF;
+\item uma UF puder ser selecionada e seus municípios carregados;
+\item o código IBGE conectar dados epidemiológicos e geometria sem joins por nome;
+\item os filtros de período funcionarem sem novo download do SINAN;
+\item testes cobrirem as principais transformações e endpoints;
+\item Windows, Linux e NixOS continuarem executando a mesma pipeline por Docker Compose.
+\end{enumerate}
 
-A Sprint~2 será considerada bem-sucedida se:
+\section{Fora do escopo desta sprint}
+Não faz parte da Sprint 2 introduzir PostGIS, autenticação de usuários, análise preditiva ou monitoramento em tempo real. Essas decisões devem aguardar a validação do fluxo Bronze--Silver--Gold e do dashboard geográfico.
 
-\begin{itemize}
-  \item For possível executar a pipeline completa para uma doença-alvo e
-        visualizar, via API (rodando em container), os agregados por UF.
-  \item O protótipo de mapa de calor por UF estiver funcional, consumindo
-        dados reais da API, seja via Docker Compose ou ambiente local.
-  \item A documentação (\texttt{README.md} e os arquivos de sprint) estiver
-        atualizada com instruções claras de execução para Windows, Linux e
-        NixOS.
-\end{itemize}
-
-\section{Riscos e observações}
-
-Alguns riscos e pontos de atenção identificados:
-
-\begin{itemize}
-  \item Complexidade na limpeza dos dados Bronze (muitas colunas com valores
-        nulos, diferentes versões de layout do SINAN, etc.).
-  \item Tamanho dos arquivos de malha municipal do IBGE, que pode impactar o
-        desempenho do front-end caso não haja simplificação.
-  \item Necessidade de padronização dos códigos de município/UF ao longo de
-        toda a pipeline para evitar erros de \emph{join} entre dados e
-        geometria.
-  \item Configuração de volumes Docker (especialmente em Windows/WSL2), que
-        pode exigir ajustes na forma como os diretórios \texttt{bronze/},
-        \texttt{silver/} e \texttt{gold/} são montados nos containers.
-\end{itemize}
-
-Apesar desses riscos, a Sprint~2 foca em resultados incrementais, permitindo
-ajustes e refinos nas sprints seguintes, aproveitando a base de Docker Compose
- e Nix estabelecida na Sprint~1.
+\section{Resultado esperado}
+Ao final, o fluxo deverá ser:
+\begin{verbatim}
+PySUS -> Bronze -> Silver -> Gold -> FastAPI -> mapa
+                         ^
+                         |
+                 filtros/períodos
+\end{verbatim}
+A regra arquitetural permanece: o dashboard consulta dados previamente processados; ele não inicia downloads do SINAN.
 
 \end{document}
