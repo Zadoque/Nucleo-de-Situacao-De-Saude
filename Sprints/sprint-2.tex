@@ -19,7 +19,8 @@
 \section{Objetivo da Sprint 2}
 
 A Sprint~2 tem como objetivo principal sair do esqueleto e avançar para uma
-primeira versão funcional de ponta a ponta, capaz de:
+primeira versão funcional de ponta a ponta, agora sobre a base de
+infraestrutura definida na Sprint~1 (Docker Compose e flake Nix), capaz de:
 
 \begin{itemize}
   \item Executar a pipeline Bronze--Silver--Gold para pelo menos uma doença
@@ -39,7 +40,8 @@ primeira versão funcional de ponta a ponta, capaz de:
   \item \textbf{Bronze}: incorporar os scripts de ingestão existentes (via
         PySUS) ao repositório, organizando-os em um pacote Python dentro do
         diretório \texttt{back-end/} (ou em uma pasta dedicada
-        \texttt{data-pipeline/}).
+        \texttt{data-pipeline/}), garantindo que possam ser executados tanto
+        dentro do container do back-end quanto em ambiente local/Nix.
   \item \textbf{Silver}: adaptar os scripts genéricos de Silver para seguir a
         convenção de colunas definida na Sprint~1, incluindo normalização de
         códigos de município/UF e deduplicação de registros.
@@ -47,10 +49,12 @@ primeira versão funcional de ponta a ponta, capaz de:
         produza tabelas com colunas \texttt{disease\_code}, \texttt{year},
         \texttt{month}, \texttt{cd\_uf}, \texttt{nm\_uf}, \texttt{cd\_mun},
         \texttt{nm\_mun} e \texttt{cases\_total}, salvando em Parquet na
-        estrutura \texttt{gold/sinan/...}.
-  \item Automatizar, quando possível, a execução dessas etapas (por exemplo,
-        via scripts \texttt{Makefile}, \texttt{tox} ou mesmo \texttt{Docker
-        Compose}).
+        estrutura \texttt{gold/sinan/...}, compatível com o volume mapeado no
+        Docker Compose.
+  \item Automatizar, quando possível, a execução dessas etapas, por exemplo,
+        adicionando comandos no \texttt{Makefile}, scripts de linha de comando
+        ou serviços específicos no \texttt{docker-compose.yml} (como um
+        container \texttt{worker} responsável pela pipeline).
 \end{itemize}
 
 \subsection{Integração da API com os dados Gold}
@@ -58,16 +62,19 @@ primeira versão funcional de ponta a ponta, capaz de:
 \begin{itemize}
   \item Ajustar as funções de leitura da camada Gold em
         \texttt{app/main.py} para utilizar os arquivos produzidos pela
-        pipeline.
+        pipeline, garantindo que o caminho interno (\texttt{/app/gold}) seja
+        consistente com o volume configurado no Docker Compose.
   \item Garantir que os endpoints \texttt{/heatmap/uf} e
         \texttt{/heatmap/municipios} utilizem efetivamente as colunas
         \texttt{year}, \texttt{month}, \texttt{cd\_uf}, \texttt{cd\_mun} e
         \texttt{cases\_total} para filtrar e agregar os dados.
   \item Adicionar testes básicos (unitários ou de integração) para validar o
         comportamento da API quando existem dados e quando a tabela está
-        vazia.
+        vazia, preferencialmente executáveis tanto em ambiente local quanto
+        dentro do container.
   \item Documentar, no \texttt{README.md}, exemplos de chamadas reais à API
-        com dados de dengue.
+        com dados de dengue, incluindo exemplos com \texttt{curl} e
+        chamadas a partir do front-end.
 \end{itemize}
 
 \subsection{Evolução do front-end}
@@ -75,7 +82,8 @@ primeira versão funcional de ponta a ponta, capaz de:
 \begin{itemize}
   \item Substituir (ou complementar) o protótipo estático atual por uma
         aplicação web mais estruturada, preferencialmente utilizando React ou
-        outra biblioteca com a qual o time tenha familiaridade.
+        outra biblioteca com a qual o time tenha familiaridade, mantendo a
+        possibilidade de servir a aplicação via Docker Compose.
   \item Integrar uma biblioteca de mapas (por exemplo, Leaflet ou MapLibre)
         para exibir um mapa do Brasil com as UFs.
   \item Realizar o \emph{join} entre os dados retornados pelo endpoint
@@ -85,6 +93,9 @@ primeira versão funcional de ponta a ponta, capaz de:
         casos de uma UF e \emph{click} para navegar para o nível de
         municípios daquela UF (mesmo que o mapa em nível municipal ainda seja
         simplificado nesta sprint).
+  \item Garantir que o front-end possa ser executado tanto via
+        \texttt{docker-compose.yml} quanto em ambiente local (por exemplo,
+        com \texttt{npm run dev}), alinhando as instruções no \texttt{README}.
 \end{itemize}
 
 \subsection{Malhas geográficas e códigos IBGE}
@@ -95,7 +106,19 @@ primeira versão funcional de ponta a ponta, capaz de:
   \item Garantir a consistência entre os códigos de município/UF usados na
         pipeline Silver/Gold e os códigos presentes nas malhas.
   \item Preparar arquivos GeoJSON simplificados (por exemplo, com redução de
-        resolução) para uso eficiente no front-end.
+        resolução) para uso eficiente no front-end, considerando o tamanho dos
+        assets que serão servidos pelo container de front-end.
+\end{itemize}
+
+\subsection{Aprimoramentos no flake Nix}
+
+\begin{itemize}
+  \item Evoluir o \texttt{flake.nix} para definir \emph{devShells} específicos
+        para back-end e front-end, incluindo ferramentas como \texttt{uvicorn},
+        \texttt{pytest}, \texttt{node} e \texttt{npm} quando necessário.
+  \item Adicionar \emph{packages} ou \emph{apps} que permitam comandos como
+        \texttt{nix run .#api} para subir a API localmente, facilitando o
+        desenvolvimento em NixOS.
 \end{itemize}
 
 \section{Critérios de aceitação}
@@ -104,11 +127,12 @@ A Sprint~2 será considerada bem-sucedida se:
 
 \begin{itemize}
   \item For possível executar a pipeline completa para uma doença-alvo e
-        visualizar, via API, os agregados por UF.
+        visualizar, via API (rodando em container), os agregados por UF.
   \item O protótipo de mapa de calor por UF estiver funcional, consumindo
-        dados reais da API.
+        dados reais da API, seja via Docker Compose ou ambiente local.
   \item A documentação (\texttt{README.md} e os arquivos de sprint) estiver
-        atualizada com instruções claras de execução.
+        atualizada com instruções claras de execução para Windows, Linux e
+        NixOS.
 \end{itemize}
 
 \section{Riscos e observações}
@@ -123,9 +147,13 @@ Alguns riscos e pontos de atenção identificados:
   \item Necessidade de padronização dos códigos de município/UF ao longo de
         toda a pipeline para evitar erros de \emph{join} entre dados e
         geometria.
+  \item Configuração de volumes Docker (especialmente em Windows/WSL2), que
+        pode exigir ajustes na forma como os diretórios \texttt{bronze/},
+        \texttt{silver/} e \texttt{gold/} são montados nos containers.
 \end{itemize}
 
 Apesar desses riscos, a Sprint~2 foca em resultados incrementais, permitindo
-ajustes e refinos nas sprints seguintes.
+ajustes e refinos nas sprints seguintes, aproveitando a base de Docker Compose
+ e Nix estabelecida na Sprint~1.
 
 \end{document}
