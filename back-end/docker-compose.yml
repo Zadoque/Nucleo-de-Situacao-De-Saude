@@ -1,15 +1,17 @@
-version: '3.9'
-
 services:
   api:
     build: .
     container_name: nss-api
     volumes:
-      - ../gold:/app/gold:ro
+      - ../data:/data
     ports:
       - "8000:8000"
-    environment:
-      - UVICORN_HOST=0.0.0.0
-      - UVICORN_PORT=8000
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+  pipeline:
+    build: .
+    container_name: nss-pipeline
+    volumes:
+      - ../data:/data
+    profiles: ["pipeline"]
+    entrypoint: ["python", "-m", "app.pipeline.run"]
