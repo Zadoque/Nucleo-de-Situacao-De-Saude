@@ -2,177 +2,98 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <title>Núcleo de Situação de Saúde - Protótipo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Núcleo de Situação de Saúde</title>
     <style>
-      body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        margin: 2rem;
-        background-color: #f5f5f5;
-      }
-
-      h1 {
-        margin-bottom: 0.5rem;
-      }
-
-      .card {
-        background-color: #ffffff;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 1rem;
-      }
-
-      th,
-      td {
-        border: 1px solid #ddd;
-        padding: 0.5rem 0.75rem;
-        text-align: left;
-      }
-
-      th {
-        background-color: #f0f0f0;
-      }
-
-      .error {
-        color: #b00020;
-        margin-top: 0.5rem;
-      }
-
-      label {
-        display: inline-block;
-        margin-right: 0.5rem;
-      }
-
-      select,
-      input {
-        margin-right: 0.5rem;
-      }
+      body { font-family: system-ui, sans-serif; margin: 2rem; background: #f5f5f5; }
+      .card { background: white; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+      label { margin-right: .35rem; }
+      input, select, button { margin-right: .75rem; padding: .45rem; }
+      table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+      th, td { border: 1px solid #ddd; padding: .55rem .75rem; text-align: left; }
+      th { background: #eee; }
+      .error { color: #a00020; margin-top: 1rem; white-space: pre-wrap; }
+      .muted { color: #666; }
     </style>
   </head>
   <body>
     <h1>Núcleo de Situação de Saúde (NSS)</h1>
-    <p>
-      Protótipo de dashboard: lista a contagem de casos por UF para uma doença
-      selecionada.
-    </p>
+    <p class="muted">Protótipo da consulta dos agregados SINAN produzidos pela pipeline Bronze → Silver → Gold.</p>
 
     <div class="card">
-      <h2>Heatmap por UF (dados agregados)</h2>
+      <h2>Casos por UF</h2>
       <form id="filter-form">
         <label for="disease">Doença:</label>
-        <select id="disease" name="disease">
-          <option value="deng">Dengue</option>
-          <option value="toxc">Toxoplasmose</option>
+        <select id="disease">
+          <option value="DENG">Dengue</option>
+          <option value="TOXC">Toxoplasmose congênita</option>
+          <option value="ZIKA">Zika</option>
         </select>
-
         <label for="year">Ano:</label>
-        <input type="number" id="year" name="year" value="2026" />
-
+        <input type="number" id="year" value="2026" min="2000" />
         <label for="month">Mês:</label>
-        <input type="number" id="month" name="month" min="1" max="12" />
-
-        <button type="submit">Atualizar</button>
+        <input type="number" id="month" min="1" max="12" placeholder="Todos" />
+        <button type="submit">Consultar</button>
       </form>
-
-      <div id="status"></div>
+      <div id="status" class="muted"></div>
       <div id="error" class="error"></div>
-
-      <table id="results-table" style="display: none">
-        <thead>
-          <tr>
-            <th>UF</th>
-            <th>Nome</th>
-            <th>Casos</th>
-          </tr>
-        </thead>
+      <table id="results-table" hidden>
+        <thead><tr><th>UF</th><th>Nome</th><th>Casos</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
 
     <script>
       const API_BASE = "http://127.0.0.1:8000";
-
       const form = document.getElementById("filter-form");
       const statusEl = document.getElementById("status");
       const errorEl = document.getElementById("error");
       const table = document.getElementById("results-table");
       const tbody = table.querySelector("tbody");
 
-      async function fetchHeatmapUF(params) {
-        const url = new URL(API_BASE + "/heatmap/uf");
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== "") {
-            url.searchParams.append(key, value);
-          }
-        });
+      async function fetchHeatmapUF() {
+        const disease = document.getElementById("disease").value;
+        const year = document.getElementById("year").value;
+        const month = document.getElementById("month").value;
+        const url = new URL(`${API_BASE}/heatmap/uf`);
+        url.searchParams.set("disease", disease);
+        if (year) url.searchParams.set("year", year);
+        if (month) url.searchParams.set("month", month);
 
-        statusEl.textContent = "Carregando...";
+        statusEl.textContent = "Consultando...";
         errorEl.textContent = "";
-        table.style.display = "none";
+        table.hidden = true;
 
         try {
-          const response = await fetch(url.toString());
-          if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            throw new Error(data.detail || "Erro ao carregar dados");
-          }
-          const data = await response.json();
+          const response = await fetch(url);
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.detail || "Erro ao consultar a API.");
           renderTable(data.items || []);
-          statusEl.textContent = `Total de UFs retornadas: ${
-            data.items?.length || 0
-          }`;
-        } catch (err) {
-          errorEl.textContent = err.message;
+          statusEl.textContent = `${data.items?.length || 0} UFs retornadas.`;
+        } catch (error) {
           statusEl.textContent = "";
-          table.style.display = "none";
+          errorEl.textContent = error.message;
         }
       }
 
       function renderTable(items) {
-        tbody.innerHTML = "";
-        if (!items.length) {
-          table.style.display = "none";
-          return;
-        }
-        items.forEach((row) => {
+        tbody.replaceChildren();
+        for (const row of items) {
           const tr = document.createElement("tr");
-
-          const cdUf = row.cd_uf ?? "";
-          const nmUf = row.nm_uf ?? "";
-          const cases = row.cases_total ?? 0;
-
-          tr.innerHTML = `
-            <td>${cdUf}</td>
-            <td>${nmUf}</td>
-            <td>${cases}</td>
-          `;
-
+          for (const value of [row.cd_uf ?? "", row.nm_uf ?? "", row.cases_total ?? 0]) {
+            const td = document.createElement("td");
+            td.textContent = value;
+            tr.appendChild(td);
+          }
           tbody.appendChild(tr);
-        });
-        table.style.display = "table";
+        }
+        table.hidden = items.length === 0;
       }
 
       form.addEventListener("submit", (event) => {
         event.preventDefault();
-        const disease = document.getElementById("disease").value;
-        const year = document.getElementById("year").value;
-        const month = document.getElementById("month").value;
-
-        const params = { disease };
-        if (year) params.year = year;
-        if (month) params.month = month;
-
-        fetchHeatmapUF(params);
+        fetchHeatmapUF();
       });
-
-      // Carrega dados iniciais
-      fetchHeatmapUF({ disease: "deng", year: 2026 });
     </script>
   </body>
 </html>
