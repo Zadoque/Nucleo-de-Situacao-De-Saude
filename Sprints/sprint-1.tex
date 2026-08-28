@@ -1,296 +1,107 @@
 \documentclass[12pt,a4paper]{article}
-
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[brazilian]{babel}
 \usepackage{geometry}
 \usepackage{hyperref}
-
+\usepackage{listings}
 \geometry{margin=2.5cm}
-
-\title{Núcleo de Situação de Saúde (NSS)\\Sprint 1}
+\title{Núcleo de Situação de Saúde (NSS)\\Sprint 1 -- Implementação}
 \author{Zadoque Pires de Deus Souza Carneiro}
 \date{Agosto de 2026}
-
 \begin{document}
-
 \maketitle
 
-\section{Contexto geral do projeto}
+\section{Objetivo}
+A Sprint 1 estabeleceu uma primeira versão executável do NSS. O ponto central foi integrar a fonte real do projeto, o SINAN, por meio da API atual do PySUS, e conectar a ingestão à arquitetura Medallion e à API FastAPI.
 
-O Núcleo de Situação de Saúde (NSS) tem como objetivo centralizar e analisar dados
-públicos de saúde, com foco inicial em notificações do Sistema de Informação de
-Agravos de Notificação (SINAN), disponibilizadas via biblioteca \texttt{PySUS}.
-A partir desses dados, pretende-se monitorar possíveis surtos epidemiológicos,
-apoiar a elaboração de planos de contingência, servir de base para pesquisas
-acadêmicas e fornecer informações consolidadas para gestores públicos e para o
-público geral.
+\section{Integração com o PySUS}
+A implementação foi alinhada à referência oficial do PySUS. A API documenta a função de alto nível \texttt{pysus.api.sinan(disease, year, ...)} para obtenção dos registros SINAN. A função aceita códigos de doença como \texttt{DENG}, \texttt{TOXC} e \texttt{ZIKA}, além de um ano ou uma lista de anos.
 
-Nesta sprint, o foco foi \textbf{estruturar o repositório}, \textbf{definir a
-arquitetura de dados} (Bronze--Silver--Gold), \textbf{preparar o esqueleto de
-back-end e front-end} e \textbf{habilitar a execução via Docker Compose e Nix}
-para facilitar o desenvolvimento em diferentes ambientes.
+O projeto usa explicitamente:
+\begin{lstlisting}[language=Python]
+from pysus.api import sinan
 
-\section{Organização do repositório}
+df = sinan(
+    disease="DENG",
+    year=2026,
+    as_dataframe=True,
+    show_progress=True,
+)
+\end{lstlisting}
 
-Antes desta sprint, o repositório GitHub estava vazio. Foram criadas as
-seguintes estruturas principais:
+O parâmetro \texttt{as\_dataframe=True} é importante porque a implementação atual do PySUS, por padrão, retorna caminhos dos arquivos baixados. Com esse parâmetro, o resultado é materializado como \texttt{pandas.DataFrame}. Assim, não foi utilizada a API antiga baseada em objetos \texttt{SINAN.get(...)}.
 
-\begin{itemize}
-  \item \textbf{\texttt{README.md}}: arquivo principal de documentação do
-        projeto, descrevendo objetivos, arquitetura, estrutura de pastas e
-        instruções para executar o back-end e o front-end, tanto com Docker
-        Compose quanto manualmente.
-  \item \textbf{\texttt{flake.nix}}: arquivo de flake para NixOS/Nix,
-        definindo um ambiente de desenvolvimento (\emph{devShell}) com as
-        ferramentas necessárias.
-  \item \textbf{\texttt{back-end/}}: pasta dedicada à API e futuros serviços
-        de back-end (FastAPI), incluindo um arquivo \texttt{docker-compose.yml}
-        específico para o back-end.
-  \item \textbf{\texttt{front-end/}}: pasta dedicada ao dashboard web e
-        protótipos de interface, também com um \texttt{docker-compose.yml}
-        próprio para o front-end.
-  \item \textbf{\texttt{Sprints/}}: pasta para documentação em LaTeX das
-        sprints, facilitando o registro de decisões técnicas e evolução do
-        projeto.
-\end{itemize}
+\section{Arquitetura Medallion}
 
-Essa organização reflete a separação de responsabilidades entre camada de dados,
-API, visualização e infraestrutura (Docker/Nix), preparando o terreno para uma
- evolução incremental do projeto.
-
-\section{Arquitetura de dados (Medallion)}
-
-Foi consolidada a adoção da arquitetura \emph{Medallion}, com três camadas
-principais:
-
-\subsection{Camada Bronze}
-
-A camada Bronze é responsável pela ingestão bruta dos dados do SINAN via PySUS.
-Cada execução produz um lote (\emph{batch}) armazenado em arquivos Parquet,
-organizados por doença, ano de origem e metadados de ingestão. A estrutura
-proposta segue o padrão:
-
+\subsection{Bronze}
+A Bronze recebe o DataFrame diretamente do PySUS e não aplica regras de negócio. O arquivo é salvo em Parquet com metadados de ingestão:
 \begin{verbatim}
-bronze/sinan/
-  disease=<doenca>/
-    source_year=<ano>/
-      ingestion_date=<data>/
-        batch_id=<id>/data_<timestamp>.parquet
+data/bronze/sinan/
+  disease=DENG/source_year=2026/
+  ingestion_date=YYYY-MM-DD/batch_id=YYYYMMDDTHHMMSSZ/
+  data.parquet
+  metadata.json
+\end{verbatim}
+O \texttt{metadata.json} registra doença, ano, lote, horário, quantidade de registros, colunas e fonte.
+
+\subsection{Silver}
+A transformação Silver seleciona as colunas necessárias ao primeiro caso de uso: \texttt{DT\_NOTIFIC}, \texttt{SEM\_NOT}, \texttt{NU\_ANO}, \texttt{ID\_MUNICIP}, \texttt{SG\_UF\_NOT}, \texttt{CLASSI\_FIN} e \texttt{EVOLUCAO}. A data é convertida para datetime, o código municipal é normalizado para sete dígitos, o código da UF para dois dígitos e são adicionadas sigla e nome da UF. Registros duplicados segundo as colunas do caso de uso são removidos.
+
+\subsection{Gold}
+A Gold deixa o dado pronto para consulta. Cada registro agregado contém:
+\begin{itemize}
+\item \texttt{disease\_code};
+\item \texttt{year} e \texttt{month};
+\item \texttt{cd\_uf} e \texttt{nm\_uf};
+\item \texttt{cd\_mun} e \texttt{nm\_mun};
+\item \texttt{cases\_total}.
+\end{itemize}
+O resultado é salvo em \texttt{data/gold/sinan/disease=<doenca>/year=<ano>/gold\_cases.parquet}.
+
+O nome do município não é inventado a partir do código. Nesta sprint, \texttt{cd\_mun} é preservado e \texttt{nm\_mun} fica reservado para a futura dimensão territorial oficial do IBGE.
+
+\section{Pipeline executável}
+Foi criada a CLI \texttt{app.pipeline.run}, que executa sequencialmente:
+\begin{verbatim}
+PySUS -> Bronze -> Silver -> Gold
+\end{verbatim}
+Exemplo:
+\begin{verbatim}
+docker compose --profile pipeline run --rm pipeline \
+  --disease DENG --year 2026
 \end{verbatim}
 
-Também é previsto um arquivo de metadados (\texttt{metadata.json}) contendo
-informações como \emph{batch id}, quantidade de linhas, colunas presentes e
-carimbo de data/hora da ingestão. Essa camada não realiza limpeza ou filtragem
-significativa; seu papel é preservar o dado o mais próximo possível da fonte.
-
-\subsection{Camada Silver}
-
-A camada Silver é responsável por aplicar regras de limpeza, seleção de colunas
-e normalização de códigos. As principais decisões desta sprint foram:
-
+\section{FastAPI}
+A API foi ajustada para consultar somente a Gold materializada. Foram implementados:
 \begin{itemize}
-  \item Selecionar, para o caso de uso inicial, as colunas:
-        \texttt{DT\_NOTIFIC}, \texttt{SEM\_NOT}, \texttt{NU\_ANO},
-        \texttt{ID\_MUNICIP}, \texttt{SG\_UF\_NOT}, \texttt{CLASSI\_FIN} e
-        \texttt{EVOLUCAO}.
-  \item Converter \texttt{DT\_NOTIFIC} para um tipo de data nativo, permitindo
-        filtragem por ano, mês e janelas móveis (ex.: últimos 30 dias).
-  \item Normalizar \texttt{ID\_MUNICIP} para um código IBGE de 7 dígitos,
-        compatível com as malhas territoriais oficiais do IBGE.
-  \item Normalizar \texttt{SG\_UF\_NOT} para um código numérico de UF de 2
-        dígitos, mapeando para o nome/sigla correspondente.
-  \item Criar colunas derivadas, como \texttt{MUNICIPIO} e \texttt{UF}, que
-        facilitam a leitura por parte do usuário final.
-  \item Definir chaves de deduplicação (por exemplo,
-        \texttt{DT\_NOTIFIC}, \texttt{SEM\_NOT}, \texttt{ID\_MUNICIP},
-        \texttt{SG\_UF\_NOT}) para remover notificações repetidas.
+\item \texttt{GET /health};
+\item \texttt{GET /diseases};
+\item \texttt{GET /heatmap/uf?disease=DENG\&year=2026};
+\item \texttt{GET /heatmap/municipios?disease=DENG\&cd\_uf=33\&year=2026}.
 \end{itemize}
+Também foi adicionada configuração CORS para permitir o consumo pelo front-end em \texttt{localhost:8080} e \texttt{127.0.0.1:8080}.
 
-Os scripts existentes de Silver (fornecidos em arquivos separados) serão
-integrados em futuras sprints dentro de uma estrutura de pacote Python,
-aproveitando essa convenção de colunas e códigos.
+\section{Correção do erro 404}
+O erro observado em \texttt{/heatmap/uf} não era uma rota inexistente. A implementação anterior levantava \texttt{404} quando não havia uma pasta/arquivo Gold para a doença solicitada. A causa era a ausência do dado processado no volume esperado.
 
-\subsection{Camada Gold}
+A solução adotada foi separar claramente ingestão e consulta. A pipeline cria \texttt{data/gold}, e a API monta o mesmo diretório em \texttt{/data}. Quando a Gold ainda não existe, a API continua retornando \texttt{404}, mas agora informa o comando necessário para materializá-la. Isso evita mascarar ausência de dados com dados fictícios.
 
-A camada Gold é responsável por produzir tabelas analíticas agregadas. Na
-Sprint~1 foi definido o formato-alvo para suportar o dashboard de mapa de calor:
-
+\section{Docker Compose}
+O back-end possui dois serviços:
 \begin{itemize}
-  \item \texttt{disease\_code} -- código da doença (ex.: \texttt{deng}, \texttt{toxc}).
-  \item \texttt{year} e \texttt{month} -- ano e mês de referência.
-  \item \texttt{cd\_uf}, \texttt{nm\_uf} -- código IBGE e nome da unidade
-        federativa.
-  \item \texttt{cd\_mun}, \texttt{nm\_mun} -- código IBGE e nome do
-        município.
-  \item \texttt{cases\_total} -- quantidade de notificações no período para
-        aquela combinação (doença, UF/município, ano, mês).
+\item \texttt{api}: FastAPI/Uvicorn;
+\item \texttt{pipeline}: execução da pipeline PySUS sob demanda.
 \end{itemize}
+Ambos compartilham \texttt{../data:/data}. Assim, o Parquet criado pelo container da pipeline fica disponível para o container da API.
 
-Os arquivos Gold serão salvos em Parquet em uma estrutura como:
+\section{Front-end}
+O protótipo HTML consulta \texttt{/heatmap/uf} apenas após o usuário pressionar ``Consultar''. A consulta automática inicial foi removida para não gerar erros enquanto a Gold ainda não tiver sido criada.
 
-\begin{verbatim}
-gold/sinan/disease=<doenca>/year=<ano>/gold_cases.parquet
-\end{verbatim}
+\section{Critério de conclusão}
+A Sprint 1 é considerada concluída quando uma doença/ano é processada com PySUS, os três níveis Bronze/Silver/Gold são materializados, a API consegue consultar a Gold via Docker Compose e o front-end consegue exibir os agregados por UF.
 
-Essa definição permite que a API responda rapidamente a consultas agregadas
-por UF e por município.
-
-\section{Infraestrutura: Docker Compose}
-
-Um objetivo importante da Sprint~1 foi permitir que o projeto pudesse ser
-executado de forma padronizada em diferentes sistemas operacionais, utilizando
-\textbf{Docker Compose}.
-
-Foram criados dois arquivos principais:
-
-\begin{itemize}
-  \item \texttt{back-end/docker-compose.yml}: responsável por orquestrar o
-        serviço de API FastAPI.
-  \item \texttt{front-end/docker-compose.yml}: responsável por orquestrar o
-        serviço de front-end estático (servido por Nginx).
-\end{itemize}
-
-O \texttt{docker-compose.yml} do back-end define um serviço \texttt{api} que:
-
-\begin{itemize}
-  \item constrói uma imagem a partir do diretório do back-end;
-  \item executa o comando \texttt{uvicorn app.main:app} escutando em
-        \texttt{0.0.0.0:8000};
-  \item expõe a porta 8000 para o host;
-  \item monta o diretório \texttt{../gold} em \texttt{/app/gold} (somente
-        leitura), permitindo que a API leia os arquivos Parquet gerados pela
-        camada Gold.
-\end{itemize}
-
-O \texttt{docker-compose.yml} do front-end define um serviço \texttt{web} que:
-
-\begin{itemize}
-  \item utiliza a imagem \texttt{nginx:alpine};
-  \item monta o conteúdo do diretório \texttt{front-end/} em
-        \texttt{/usr/share/nginx/html};
-  \item expõe a porta 8080 para o host.
-\end{itemize}
-
-Com isso, é possível subir o back-end e o front-end em qualquer máquina com
-Docker (Windows, Linux, WSL2) sem necessidade de configurar ambientes Python
-locais.
-
-\section{Ambiente NixOS (flake.nix)}
-
-Também foi adicionado um arquivo \texttt{flake.nix} na raiz do repositório, com
- o objetivo de fornecer um \emph{devShell} para usuários de NixOS (ou Nix em
-outras distribuições). Esse \emph{devShell} inclui as ferramentas necessárias
-para desenvolvimento, como Python, pip e utilitários básicos.
-
-Assim, desenvolvedores que utilizam Nix podem simplesmente executar
-\texttt{nix develop} na raiz do projeto para obter um ambiente consistente,
-sem depender do sistema operacional subjacente.
-
-\section{Back-end: esqueleto FastAPI}
-
-Como parte da Sprint~1, foi criado um esqueleto de aplicação FastAPI no
- diretório \texttt{back-end/}, com o seguinte conteúdo principal:
-
-\begin{verbatim}
-back-end/
-  app/
-    __init__.py
-    main.py
-  requirements.txt
-  docker-compose.yml
-\end{verbatim}
-
-O arquivo \texttt{requirements.txt} lista as dependências mínimas
-(\texttt{fastapi}, \texttt{uvicorn[standard]}, \texttt{pandas}, \texttt{pyarrow}).
-
-No arquivo \texttt{app/main.py} foi implementado:
-
-\begin{itemize}
-  \item Configuração básica da aplicação FastAPI, com título e descrição
-        compatíveis com o projeto NSS.
-  \item Função utilitária para listar doenças disponíveis com base na
-        estrutura de diretórios em \texttt{gold/sinan/disease=*}.
-  \item Função utilitária para carregar os arquivos Parquet da camada Gold
-        para uma doença específica.
-  \item Endpoint \texttt{/health}, que retorna o status de saúde da API.
-  \item Endpoint \texttt{/diseases}, que lista as doenças presentes na camada
-        Gold.
-  \item Endpoint \texttt{/heatmap/uf}, que agrega a tabela Gold por UF
-        (colunas \texttt{cd\_uf} e \texttt{nm\_uf}) e soma a coluna
-        \texttt{cases\_total}, com parâmetros opcionais de \texttt{year} e
-        \texttt{month}.
-  \item Endpoint \texttt{/heatmap/municipios}, que agrega por município
-        (colunas \texttt{cd\_mun} e \texttt{nm\_mun}) e também aceita filtros
-        de UF, ano e mês.
-\end{itemize}
-
-Esses endpoints ainda assumem que a pipeline Gold irá produzir colunas com
-nomes padronizados (\texttt{cd\_uf}, \texttt{nm\_uf}, \texttt{cd\_mun},
-\texttt{nm\_mun}, \texttt{year}, \texttt{month}, \texttt{cases\_total}), o
-que será implementado em sprints futuras.
-
-\section{Front-end: protótipo de dashboard}
-
-Na Sprint~1 foi criado um protótipo mínimo em HTML/JavaScript no diretório
-\texttt{front-end/}. O objetivo é validar a comunicação com a API antes de
-partir para um framework mais complexo.
-
-O arquivo \texttt{index.html} contém:
-
-\begin{itemize}
-  \item Um pequeno formulário para seleção de doença (por enquanto
-        \texttt{deng} e \texttt{toxc}), ano e mês.
-  \item Uma chamada \texttt{fetch} ao endpoint \texttt{/heatmap/uf} da API,
-        exibindo o retorno em uma tabela (colunas: código da UF, nome da UF e
-        número de casos).
-  \item Estilização simples em CSS para tornar a visualização mais agradável.
-\end{itemize}
-
-O arquivo \texttt{front-end/README.md} documenta como executar o protótipo
-utilizando tanto um servidor HTTP básico quanto o \texttt{docker-compose.yml}
-que sobe um Nginx servindo os arquivos estáticos.
-
-Embora o mapa de calor propriamente dito (com malhas do IBGE e coloração por
-intensidade) ainda não tenha sido implementado, este protótipo já estabelece a
-integração back-end/front-end, agora também contemplando a infraestrutura com
-Docker.
-
-\section{Documentação de sprints}
-
-Por fim, foi criada a pasta \texttt{Sprints/}, com os arquivos:
-
-\begin{itemize}
-  \item \texttt{sprint-1.tex}: este documento, descrevendo em detalhes as
-        decisões e implementações da Sprint~1, incluindo Docker Compose e
-        flake Nix.
-  \item \texttt{sprint-2.tex}: documento de planejamento da próxima sprint,
-        contendo atividades previstas.
-\end{itemize}
-
-A ideia é compilar esses arquivos em PDF (por exemplo, com o texpage ou
-\texttt{pdflatex}) e armazenar os PDFs na mesma pasta, preservando o histórico
-de evolução do projeto.
-
-\section{Resumo da Sprint 1}
-
-De forma resumida, a Sprint~1 entregou:
-
-\begin{itemize}
-  \item Organização inicial do repositório GitHub com separação clara entre
-        back-end, front-end, documentação de sprints e infraestrutura.
-  \item Definição da arquitetura de dados baseada em camadas Bronze, Silver e
-        Gold.
-  \item Esqueleto funcional de API FastAPI com endpoints para saúde da API,
-        listagem de doenças e agregações por UF e município.
-  \item Protótipo estático de front-end consumindo o endpoint de UF.
-  \item Arquivo \texttt{flake.nix} para facilitar o desenvolvimento em NixOS.
-  \item Arquivos \texttt{docker-compose.yml} específicos para back-end e
-        front-end, permitindo execução simplificada via Docker Compose.
-\end{itemize}
-
-Esses elementos criam uma base sólida sobre a qual será possível avançar para a
-implementação completa da pipeline de dados, do dashboard com mapa de calor e
-de funcionalidades adicionais em sprints futuras.
+\section{Conclusão}
+A principal mudança desta revisão foi substituir a suposição de uma API antiga do PySUS por sua interface de alto nível documentada atualmente. O projeto passa a possuir um fluxo real de dados, em vez de apenas um esqueleto de API esperando Parquets produzidos externamente.
 
 \end{document}
