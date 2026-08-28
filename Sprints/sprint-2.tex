@@ -1,0 +1,131 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\geometry{margin=2.5cm}
+
+\title{Núcleo de Situação de Saúde (NSS)\\Sprint 2 -- Planejamento}
+\author{Zadoque Pires de Deus Souza Carneiro}
+\date{Agosto de 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Objetivo da Sprint 2}
+
+A Sprint~2 tem como objetivo principal sair do esqueleto e avançar para uma
+primeira versão funcional de ponta a ponta, capaz de:
+
+\begin{itemize}
+  \item Executar a pipeline Bronze--Silver--Gold para pelo menos uma doença
+        (por exemplo, dengue em 2026), gerando tabelas agregadas compatíveis
+        com a API.
+  \item Integrar efetivamente a API FastAPI com os arquivos Parquet da camada
+        Gold, retornando dados reais para os endpoints de heatmap.
+  \item Evoluir o front-end para uma visualização mais próxima do mapa de
+        calor desejado, iniciando o uso de malhas geográficas oficiais.
+\end{itemize}
+
+\section{Atividades planejadas}
+
+\subsection{Integração da pipeline Bronze--Silver--Gold}
+
+\begin{itemize}
+  \item \textbf{Bronze}: incorporar os scripts de ingestão existentes (via
+        PySUS) ao repositório, organizando-os em um pacote Python dentro do
+        diretório \texttt{back-end/} (ou em uma pasta dedicada
+        \texttt{data-pipeline/}).
+  \item \textbf{Silver}: adaptar os scripts genéricos de Silver para seguir a
+        convenção de colunas definida na Sprint~1, incluindo normalização de
+        códigos de município/UF e deduplicação de registros.
+  \item \textbf{Gold}: implementar um agregador que, a partir da Silver,
+        produza tabelas com colunas \texttt{disease\_code}, \texttt{year},
+        \texttt{month}, \texttt{cd\_uf}, \texttt{nm\_uf}, \texttt{cd\_mun},
+        \texttt{nm\_mun} e \texttt{cases\_total}, salvando em Parquet na
+        estrutura \texttt{gold/sinan/...}.
+  \item Automatizar, quando possível, a execução dessas etapas (por exemplo,
+        via scripts \texttt{Makefile}, \texttt{tox} ou mesmo \texttt{Docker
+        Compose}).
+\end{itemize}
+
+\subsection{Integração da API com os dados Gold}
+
+\begin{itemize}
+  \item Ajustar as funções de leitura da camada Gold em
+        \texttt{app/main.py} para utilizar os arquivos produzidos pela
+        pipeline.
+  \item Garantir que os endpoints \texttt{/heatmap/uf} e
+        \texttt{/heatmap/municipios} utilizem efetivamente as colunas
+        \texttt{year}, \texttt{month}, \texttt{cd\_uf}, \texttt{cd\_mun} e
+        \texttt{cases\_total} para filtrar e agregar os dados.
+  \item Adicionar testes básicos (unitários ou de integração) para validar o
+        comportamento da API quando existem dados e quando a tabela está
+        vazia.
+  \item Documentar, no \texttt{README.md}, exemplos de chamadas reais à API
+        com dados de dengue.
+\end{itemize}
+
+\subsection{Evolução do front-end}
+
+\begin{itemize}
+  \item Substituir (ou complementar) o protótipo estático atual por uma
+        aplicação web mais estruturada, preferencialmente utilizando React ou
+        outra biblioteca com a qual o time tenha familiaridade.
+  \item Integrar uma biblioteca de mapas (por exemplo, Leaflet ou MapLibre)
+        para exibir um mapa do Brasil com as UFs.
+  \item Realizar o \emph{join} entre os dados retornados pelo endpoint
+        \texttt{/heatmap/uf} e a malha geográfica, aplicando uma escala de
+        cores para representar a intensidade dos casos (mapa de calor).
+  \item Implementar interação básica: \emph{hover} para mostrar o número de
+        casos de uma UF e \emph{click} para navegar para o nível de
+        municípios daquela UF (mesmo que o mapa em nível municipal ainda seja
+        simplificado nesta sprint).
+\end{itemize}
+
+\subsection{Malhas geográficas e códigos IBGE}
+
+\begin{itemize}
+  \item Baixar as malhas territoriais oficiais do IBGE (UFs e municípios) no
+        formato apropriado (Shapefile ou GeoJSON).
+  \item Garantir a consistência entre os códigos de município/UF usados na
+        pipeline Silver/Gold e os códigos presentes nas malhas.
+  \item Preparar arquivos GeoJSON simplificados (por exemplo, com redução de
+        resolução) para uso eficiente no front-end.
+\end{itemize}
+
+\section{Critérios de aceitação}
+
+A Sprint~2 será considerada bem-sucedida se:
+
+\begin{itemize}
+  \item For possível executar a pipeline completa para uma doença-alvo e
+        visualizar, via API, os agregados por UF.
+  \item O protótipo de mapa de calor por UF estiver funcional, consumindo
+        dados reais da API.
+  \item A documentação (\texttt{README.md} e os arquivos de sprint) estiver
+        atualizada com instruções claras de execução.
+\end{itemize}
+
+\section{Riscos e observações}
+
+Alguns riscos e pontos de atenção identificados:
+
+\begin{itemize}
+  \item Complexidade na limpeza dos dados Bronze (muitas colunas com valores
+        nulos, diferentes versões de layout do SINAN, etc.).
+  \item Tamanho dos arquivos de malha municipal do IBGE, que pode impactar o
+        desempenho do front-end caso não haja simplificação.
+  \item Necessidade de padronização dos códigos de município/UF ao longo de
+        toda a pipeline para evitar erros de \emph{join} entre dados e
+        geometria.
+\end{itemize}
+
+Apesar desses riscos, a Sprint~2 foca em resultados incrementais, permitindo
+ajustes e refinos nas sprints seguintes.
+
+\end{document}

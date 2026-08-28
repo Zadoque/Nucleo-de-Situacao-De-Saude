@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Núcleo de Situação de Saúde - Protótipo</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 2rem;
+        background-color: #f5f5f5;
+      }
+
+      h1 {
+        margin-bottom: 0.5rem;
+      }
+
+      .card {
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+      }
+
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+      }
+
+      th {
+        background-color: #f0f0f0;
+      }
+
+      .error {
+        color: #b00020;
+        margin-top: 0.5rem;
+      }
+
+      label {
+        display: inline-block;
+        margin-right: 0.5rem;
+      }
+
+      select,
+      input {
+        margin-right: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Núcleo de Situação de Saúde (NSS)</h1>
+    <p>
+      Protótipo de dashboard: lista a contagem de casos por UF para uma doença
+      selecionada.
+    </p>
+
+    <div class="card">
+      <h2>Heatmap por UF (dados agregados)</h2>
+      <form id="filter-form">
+        <label for="disease">Doença:</label>
+        <select id="disease" name="disease">
+          <option value="deng">Dengue</option>
+          <option value="toxc">Toxoplasmose</option>
+        </select>
+
+        <label for="year">Ano:</label>
+        <input type="number" id="year" name="year" value="2026" />
+
+        <label for="month">Mês:</label>
+        <input type="number" id="month" name="month" min="1" max="12" />
+
+        <button type="submit">Atualizar</button>
+      </form>
+
+      <div id="status"></div>
+      <div id="error" class="error"></div>
+
+      <table id="results-table" style="display: none">
+        <thead>
+          <tr>
+            <th>UF</th>
+            <th>Nome</th>
+            <th>Casos</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <script>
+      const API_BASE = "http://127.0.0.1:8000";
+
+      const form = document.getElementById("filter-form");
+      const statusEl = document.getElementById("status");
+      const errorEl = document.getElementById("error");
+      const table = document.getElementById("results-table");
+      const tbody = table.querySelector("tbody");
+
+      async function fetchHeatmapUF(params) {
+        const url = new URL(API_BASE + "/heatmap/uf");
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== "") {
+            url.searchParams.append(key, value);
+          }
+        });
+
+        statusEl.textContent = "Carregando...";
+        errorEl.textContent = "";
+        table.style.display = "none";
+
+        try {
+          const response = await fetch(url.toString());
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.detail || "Erro ao carregar dados");
+          }
+          const data = await response.json();
+          renderTable(data.items || []);
+          statusEl.textContent = `Total de UFs retornadas: ${
+            data.items?.length || 0
+          }`;
+        } catch (err) {
+          errorEl.textContent = err.message;
+          statusEl.textContent = "";
+          table.style.display = "none";
+        }
+      }
+
+      function renderTable(items) {
+        tbody.innerHTML = "";
+        if (!items.length) {
+          table.style.display = "none";
+          return;
+        }
+        items.forEach((row) => {
+          const tr = document.createElement("tr");
+
+          const cdUf = row.cd_uf ?? "";
+          const nmUf = row.nm_uf ?? "";
+          const cases = row.cases_total ?? 0;
+
+          tr.innerHTML = `
+            <td>${cdUf}</td>
+            <td>${nmUf}</td>
+            <td>${cases}</td>
+          `;
+
+          tbody.appendChild(tr);
+        });
+        table.style.display = "table";
+      }
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const disease = document.getElementById("disease").value;
+        const year = document.getElementById("year").value;
+        const month = document.getElementById("month").value;
+
+        const params = { disease };
+        if (year) params.year = year;
+        if (month) params.month = month;
+
+        fetchHeatmapUF(params);
+      });
+
+      // Carrega dados iniciais
+      fetchHeatmapUF({ disease: "deng", year: 2026 });
+    </script>
+  </body>
+</html>
