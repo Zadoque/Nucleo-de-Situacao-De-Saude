@@ -1,8 +1,8 @@
 """Ingestão SINAN usando a API pública do PySUS.
 
-A API atual do PySUS expõe `pysus.api.sinan(disease, year, ...)` como função
-de alto nível. Por padrão ela devolve caminhos dos Parquets baixados; com
-`as_dataframe=True` devolve diretamente um pandas.DataFrame.
+PySUS 2.x expõe a função de alto nível `sinan` no pacote `pysus`.
+Com `as_dataframe=True`, a função consulta, baixa e lê os Parquets como
+um único pandas.DataFrame.
 """
 
 from __future__ import annotations
@@ -13,25 +13,28 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
-from pysus.api import sinan
+from pysus import sinan
 
 BASE_DIR = Path("/data")
 
 
 def fetch_sinan(disease: str, year: int) -> pd.DataFrame:
-    """Baixa um dataset SINAN para doença/ano via PySUS."""
+    """Baixa os registros SINAN para uma doença e ano usando PySUS."""
     result = sinan(
         disease=disease.upper(),
         year=year,
         as_dataframe=True,
         show_progress=True,
     )
+
     if not isinstance(result, pd.DataFrame):
         raise TypeError(f"PySUS retornou tipo inesperado: {type(result)!r}")
+
     return result
 
 
 def write_bronze(df: pd.DataFrame, disease: str, year: int) -> Path:
+    """Persiste o DataFrame bruto na camada Bronze com metadados."""
     now = datetime.now(UTC)
     batch_id = now.strftime("%Y%m%dT%H%M%SZ")
     directory = (
@@ -39,8 +42,10 @@ def write_bronze(df: pd.DataFrame, disease: str, year: int) -> Path:
         / f"source_year={year}" / f"ingestion_date={now.date()}" / f"batch_id={batch_id}"
     )
     directory.mkdir(parents=True, exist_ok=True)
+
     parquet = directory / "data.parquet"
     df.to_parquet(parquet, index=False)
+
     metadata = {
         "disease": disease.upper(),
         "source_year": year,
@@ -51,20 +56,28 @@ def write_bronze(df: pd.DataFrame, disease: str, year: int) -> Path:
         "source": "PySUS SINAN",
     }
     (directory / "metadata.json").write_text(
-        json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(metadata, ensure_ascii=False, indent=2),
+        encoding="utf-8",
     )
     return parquet
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Baixa SINAN via PySUS para a camada Bronze")
-    parser.add_argument("--disease", required=True, help="Código SINAN aceito pelo PySUS, por exemplo DENG")
+    parser = argparse.ArgumentParser(
+        description="Baixa SINAN via PySUS para a camada Bronze"
+    )
+    parser.add_argument(
+        "--disease",
+        required=True,
+        help="Código SINAN aceito pelo PySUS, por exemplo DENG",
+    )
     parser.add_argument("--year", required=True, type=int)
     args = parser.parse_args()
 
     df = fetch_sinan(args.disease, args.year)
     if df.empty:
         raise RuntimeError("PySUS retornou um DataFrame vazio")
+
     print(write_bronze(df, args.disease, args.year))
 
 
