@@ -2,3 +2,5 @@ fastapi
 uvicorn[standard]
 pandas
 pyarrow
+PySUS
+requests
