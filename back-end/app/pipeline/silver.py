@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
  
 import pandas as pd
+
+import argparse
  
 from .columns import CATALOG, resolve
  
@@ -22,7 +24,6 @@ UF_NAMES = {
     "RS": "Rio Grande do Sul", "MS": "Mato Grosso do Sul", "MT": "Mato Grosso",
     "GO": "Goiás", "DF": "Distrito Federal",
 }
- 
  
 def transform(df: pd.DataFrame, year: int, selected_columns: list[str] | None = None) -> pd.DataFrame:
     keys = resolve(selected_columns or [])
@@ -60,4 +61,23 @@ def transform_file(
     destination.parent.mkdir(parents=True, exist_ok=True)
     result.to_parquet(destination, index=False)
     return destination
- 
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Transforma SINAN da camada Bronze para Silver")
+    parser.add_argument("--source", required=True, type=Path, help="Arquivo Parquet de entrada (Bronze)")
+    parser.add_argument("--destination", required=True, type=Path, help="Arquivo Parquet de saída (Silver)")
+    parser.add_argument("--year", required=True, type=int, help="Ano de referência para filtrar DT_NOTIFIC")
+    parser.add_argument(
+        "--columns",
+        default="",
+        help=f"Chaves separadas por vírgula, dentre: {', '.join(CATALOG)}",
+    )
+
+    args = parser.parse_args()
+    selected = [c.strip() for c in args.columns.split(",") if c.strip()]
+    transform_file(
+        source=args.source,
+        destination=args.destination,
+        year=args.year,
+        selected_columns=selected
+    )

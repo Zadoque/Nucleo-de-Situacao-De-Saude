@@ -1,11 +1,3 @@
-"""Ingestão SINAN usando a API pública do PySUS.
-
-A API atual do PySUS (2.x) organiza os fetchers em namespaces de origem.
-Para o SINAN via FTP, a função de alto nível é `pysus.ftp.sinan(disease, year, ...)`.
-Por padrão ela devolve caminhos dos Parquets baixados; com `as_dataframe=True`
-devolve diretamente um pandas.DataFrame.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -20,7 +12,6 @@ BASE_DIR = Path("/data")
 
 
 def fetch_sinan(disease: str, year: int) -> pd.DataFrame:
-    """Baixa um dataset SINAN para doença/ano via PySUS."""
     result = pysus.ftp.sinan(
         disease=disease.upper(),
         year=year,
