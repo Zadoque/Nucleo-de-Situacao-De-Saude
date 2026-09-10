@@ -1,0 +1,410 @@
+\documentclass[12pt,a4paper]{article}
+
+% -------------------------------------------------
+% PACOTES E CONFIGURAÇÕES
+% -------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+% Suporte a idioma com fallback automático para compilação em qualquer ambiente TeX Live
+\IfFileExists{brazilian.ldf}{%
+  \usepackage[brazilian]{babel}%
+}{%
+  \usepackage[english]{babel}%
+  \addto\captionsenglish{%
+    \renewcommand{\contentsname}{Sumário}%
+    \renewcommand{\listfigurename}{Lista de Figuras}%
+    \renewcommand{\listtablename}{Lista de Tabelas}%
+    \renewcommand{\figurename}{Figura}%
+    \renewcommand{\tablename}{Tabela}%
+  }%
+}
+
+\usepackage{lmodern}
+\usepackage{geometry}
+\geometry{top=2.8cm,bottom=2.5cm,left=3cm,right=2.5cm}
+
+% Microtype: melhora tipográfica (carregado se disponível)
+\IfFileExists{microtype.sty}{\usepackage{microtype}}{}
+
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{tabularx}
+
+% Enumitem com fallback elegante
+\IfFileExists{enumitem.sty}{%
+  \usepackage{enumitem}%
+  \setlist[enumerate,1]{label=\textbf{\arabic*.}, leftmargin=*}%
+}{%
+  \renewcommand{\labelenumi}{\textbf{\arabic{enumi}.}}%
+}
+
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{bookmark}
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+
+% Lastpage com fallback seguro
+\IfFileExists{lastpage.sty}{%
+  \usepackage{lastpage}%
+}{%
+  \AtEndDocument{\label{LastPage}}%
+}
+
+\usepackage{etoolbox}
+\renewcommand{\_}{\textunderscore\allowbreak}
+
+% -------------------------------------------------
+% CORES DO PROJETO LCQUI
+% -------------------------------------------------
+\definecolor{entityHead}{RGB}{30,64,110}
+\definecolor{entityBg}{RGB}{235,242,250}
+\definecolor{entityFrame}{RGB}{30,64,110}
+
+\definecolor{noteHead}{RGB}{176,98,10}
+\definecolor{noteBg}{RGB}{255,244,229}
+\definecolor{noteFrame}{RGB}{176,98,10}
+
+\definecolor{ruleHead}{RGB}{20,110,80}
+\definecolor{ruleBg}{RGB}{230,247,240}
+\definecolor{ruleFrame}{RGB}{20,110,80}
+
+\definecolor{pkColor}{RGB}{176,40,40}
+\definecolor{fkColor}{RGB}{30,90,160}
+\definecolor{typeColor}{RGB}{60,60,60}
+\definecolor{typeBg}{RGB}{225,225,232}
+
+% -------------------------------------------------
+% HYPERSETUP
+% -------------------------------------------------
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!50!black,
+    urlcolor=blue!60!black,
+    citecolor=green!40!black,
+    pdftitle={Projeto de Desenvolvimento do Sistema para o Nucleo de Situação de Saúde},
+    pdfauthor={Zadoque Carneiro}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{Núcleo de Situação de Saúde}
+\rhead{Planejamento Técnico}
+\cfoot{\thepage\ de \pageref{LastPage}}
+\setlength{\headheight}{15pt}
+
+% -------------------------------------------------
+% DEFINIÇÃO DE LINGUAGENS (MERMAID E TYPESCRIPT)
+% -------------------------------------------------
+\lstdefinelanguage{Mermaid}{%
+  morekeywords={flowchart,graph,sequenceDiagram,classDiagram,erDiagram,stateDiagram,participant,subgraph,end,style,click,Note,rect,alt,else,loop,par,and,autonumber},%
+  sensitive=false%
+}
+
+\lstdefinelanguage{TypeScript}{
+  keywords={typeof, new, true, false, catch, function, return, null, switch, var, if, in, while, do, else, case, break, const, let, export, import, from, interface, type, class, extends, implements, async, await, string, number, boolean, any, void, as},
+  keywordstyle=\color{blue}\bfseries,
+  ndkeywords={admin, onCall, PDFDocument, Date, Promise, reduce},
+  ndkeywordstyle=\color{purple}\bfseries,
+  identifierstyle=\color{black},
+  sensitive=true,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{gray}\ttfamily\itshape,
+  stringstyle=\color{green!50!black}\ttfamily,
+  morestring=[b]',
+  morestring=[b]",
+  morestring=[b]`
+}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    columns=fullflexible,
+    keepspaces=true,
+    showstringspaces=false,
+    literate=
+        {á}{{\'a}}1 {à}{{\`a}}1 {ã}{{\~a}}1 {â}{{\^a}}1
+        {é}{{\'e}}1 {ê}{{\^e}}1
+        {í}{{\'i}}1
+        {ó}{{\'o}}1 {õ}{{\~o}}1 {ô}{{\^o}}1
+        {ú}{{\'u}}1 {ü}{{\"u}}1
+        {ç}{{\c c}}1
+        {Á}{{\'A}}1 {À}{{\`A}}1 {Ã}{{\~A}}1 {Â}{{\^A}}1
+        {É}{{\'E}}1 {Ê}{{\^E}}1
+        {Í}{{\'I}}1
+        {Ó}{{\'O}}1 {Õ}{{\~O}}1 {Ô}{{\^O}}1
+        {Ú}{{\'U}}1 {Ü}{{\"U}}1
+        {Ç}{{\c C}}1
+}
+
+\newcommand{\placeholderfigure}[3]{%
+\begin{figure}[H]
+    \centering
+    \fbox{\begin{minipage}[c][#2][c]{0.93\textwidth}
+        \centering
+        \textbf{Espaço reservado para diagrama/imagem}\\[0.5em]
+        \textit{#1.png}\\[0.5em]
+        \small #3
+    \end{minipage}}
+    \caption{#3}
+\end{figure}}
+
+% -------------------------------------------------
+% CAIXAS DE ENTIDADE, OBSERVAÇÃO E REGRAS
+% Suporta tcolorbox quando disponível, ou renderização nativa ultra-rápida
+% -------------------------------------------------
+\newif\ifusetcolorbox
+\IfFileExists{tcolorbox.sty}{\usetcolorboxtrue}{\usetcolorboxfalse}
+
+\ifusetcolorbox
+  \usepackage{tcolorbox}
+  \tcbuselibrary{skins,breakable}
+  \newtcolorbox{entidade}[1]{%
+    enhanced, breakable, colback=entityBg, colframe=entityFrame,
+    colbacktitle=entityHead, coltitle=white, fonttitle=\bfseries\large,
+    title={\ttfamily #1}, boxrule=0.9pt, arc=2mm,
+    left=5mm, right=5mm, top=2mm, bottom=2mm, boxsep=1mm,
+    attach boxed title to top left={xshift=3mm,yshift*=-1mm},
+    boxed title style={boxrule=0pt,arc=1.5mm},
+    before skip=10pt, after skip=14pt
+  }
+  \newcommand{\tipo}[1]{%
+    \tcbox[nobeforeafter,boxrule=0pt,boxsep=1pt,left=3pt,right=3pt,top=1.5pt,bottom=1.5pt,
+           colback=typeBg,colframe=typeBg,arc=1.5mm,
+           fontupper=\scriptsize\ttfamily\color{typeColor}]{#1}%
+  }
+  \newcommand{\chave}[1]{%
+    \ifstrequal{#1}{PK}{\tcbox[nobeforeafter,boxrule=0pt,boxsep=1pt,left=3pt,right=3pt,top=1.5pt,bottom=1.5pt,colback=pkColor,colframe=pkColor,arc=1.5mm,fontupper=\scriptsize\bfseries\color{white}]{PK}}{%
+    \ifstrequal{#1}{FK}{\tcbox[nobeforeafter,boxrule=0pt,boxsep=1pt,left=3pt,right=3pt,top=1.5pt,bottom=1.5pt,colback=fkColor,colframe=fkColor,arc=1.5mm,fontupper=\scriptsize\bfseries\color{white}]{FK}}{%
+    \tcbox[nobeforeafter,boxrule=0pt,boxsep=1pt,left=3pt,right=3pt,top=1.5pt,bottom=1.5pt,colback=gray!25,colframe=gray!25,arc=1.5mm,fontupper=\scriptsize\itshape\color{black!70}]{#1}%
+    }}%
+  }
+  \newtcolorbox{explicacao}[1][Observação]{%
+    enhanced, breakable, colback=noteBg, colframe=noteFrame,
+    colbacktitle=noteHead, coltitle=white, fonttitle=\bfseries\small,
+    title={\raisebox{-0.1em}{\textbf{i}}\ \ #1}, boxrule=0.8pt, arc=1.5mm,
+    left=4mm, right=4mm, top=1.5mm, bottom=1.5mm, before skip=8pt, after skip=10pt
+  }
+  \newtcolorbox{regra}[1][Regra de negócio]{%
+    enhanced, breakable, colback=ruleBg, colframe=ruleFrame,
+    colbacktitle=ruleHead, coltitle=white, fonttitle=\bfseries\small,
+    title={#1}, boxrule=0.8pt, arc=1.5mm,
+    left=4mm, right=4mm, top=1.5mm, bottom=1.5mm, before skip=8pt, after skip=10pt
+  }
+\else
+  % Renderização nativa limpa, rápida e estética (zero dependência de pacotes extras)
+  \newcommand{\tipo}[1]{\colorbox{typeBg}{\scriptsize\ttfamily\color{typeColor}\strut\,#1\,}}
+  \newcommand{\chave}[1]{%
+    \ifstrequal{#1}{PK}{\colorbox{pkColor}{\scriptsize\bfseries\color{white}\strut\,PK\,}}{%
+    \ifstrequal{#1}{FK}{\colorbox{fkColor}{\scriptsize\bfseries\color{white}\strut\,FK\,}}{%
+    \colorbox{gray!25}{\scriptsize\itshape\color{black!70}\strut\,#1\,}%
+    }}%
+  }
+  \newsavebox{\entidadeBox}
+  \newenvironment{entidade}[1]{%
+    \par\vspace{8pt}\noindent%
+    \def\entidadeTitle{#1}%
+    \begin{lrbox}{\entidadeBox}%
+    \begin{minipage}{\dimexpr\textwidth-2\fboxrule-10mm\relax}%
+    \vspace{2mm}%
+  }{%
+    \vspace{2mm}%
+    \end{minipage}%
+    \end{lrbox}%
+    \setlength{\fboxrule}{0.9pt}%
+    \setlength{\fboxsep}{0pt}%
+    \fcolorbox{entityFrame}{entityBg}{%
+      \begin{minipage}{\dimexpr\textwidth-2\fboxrule\relax}%
+        \colorbox{entityHead}{%
+          \begin{minipage}{\dimexpr\textwidth-2\fboxrule-8mm\relax}%
+            \vspace{2mm}%
+            \hspace{4mm}{\color{white}\bfseries\large\ttfamily \entidadeTitle}%
+            \vspace{2mm}%
+          \end{minipage}%
+        }\par
+        \vspace{2mm}%
+        \hspace{5mm}\usebox{\entidadeBox}%
+        \vspace{2mm}%
+      \end{minipage}%
+    }\par\vspace{10pt}%
+  }
+  \newsavebox{\explicacaoBox}
+  \newenvironment{explicacao}[1][Observação]{%
+    \par\vspace{8pt}\noindent%
+    \def\explicacaoTitle{#1}%
+    \begin{lrbox}{\explicacaoBox}%
+    \begin{minipage}{\dimexpr\textwidth-2\fboxrule-8mm\relax}%
+    \small\vspace{2mm}%
+  }{%
+    \vspace{2mm}%
+    \end{minipage}%
+    \end{lrbox}%
+    \setlength{\fboxrule}{0.8pt}%
+    \setlength{\fboxsep}{0pt}%
+    \fcolorbox{noteFrame}{noteBg}{%
+      \begin{minipage}{\dimexpr\textwidth-2\fboxrule\relax}%
+        \colorbox{noteHead}{%
+          \begin{minipage}{\dimexpr\textwidth-2\fboxrule-6mm\relax}%
+            \vspace{1.5mm}%
+            \hspace{3mm}{\color{white}\bfseries\small\raisebox{-0.1em}{\textbf{i}}\ \ \explicacaoTitle}%
+            \vspace{1.5mm}%
+          \end{minipage}%
+        }\par
+        \vspace{2mm}%
+        \hspace{4mm}\usebox{\explicacaoBox}%
+        \vspace{2mm}%
+      \end{minipage}%
+    }\par\vspace{10pt}%
+  }
+  \newsavebox{\regraBox}
+  \newenvironment{regra}[1][Regra de negócio]{%
+    \par\vspace{8pt}\noindent%
+    \def\regraTitle{#1}%
+    \begin{lrbox}{\regraBox}%
+    \begin{minipage}{\dimexpr\textwidth-2\fboxrule-8mm\relax}%
+    \small\vspace{2mm}%
+  }{%
+    \vspace{2mm}%
+    \end{minipage}%
+    \end{lrbox}%
+    \setlength{\fboxrule}{0.8pt}%
+    \setlength{\fboxsep}{0pt}%
+    \fcolorbox{ruleFrame}{ruleBg}{%
+      \begin{minipage}{\dimexpr\textwidth-2\fboxrule\relax}%
+        \colorbox{ruleHead}{%
+          \begin{minipage}{\dimexpr\textwidth-2\fboxrule-6mm\relax}%
+            \vspace{1.5mm}%
+            \hspace{3mm}{\color{white}\bfseries\small \regraTitle}%
+            \vspace{1.5mm}%
+          \end{minipage}%
+        }\par
+        \vspace{2mm}%
+        \hspace{4mm}\usebox{\regraBox}%
+        \vspace{2mm}%
+      \end{minipage}%
+    }\par\vspace{10pt}%
+  }
+\fi
+
+% Linha de campo: nome | tipo postgres | chave/observação (opcional)
+\newcommand{\campo}[3]{%
+  \noindent\textit{\textbf{#1}}\hfill\tipo{#2}%
+  \ifstrempty{#3}{\ \chave{NOT NULL}}{\ \chave{#3}}%
+  \par\vspace{2pt}%
+}
+
+\newcommand{\subcampo}[1]{%
+  \noindent\hspace{4mm}{\small\textit{#1}}\par\vspace{2pt}%
+}
+
+\title{\textbf{Projeto de Desenvolvimento do Sistema para o Núcleo de Situação de Saúde}\\[0.5em]\large Planejamento Funcional, Arquitetural, de Dados e de Implementação}
+\author{Zadoque Carneiro}
+\date{\today}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+\newpage
+
+\tableofcontents
+\newpage
+
+\section{Introdução}
+O presente documento detalha o planejamento arquitetural e funcional inicial para o sistema do Núcleo de Situação de Saúde (também referenciado administrativamente como Sala de Situação de Saúde) da Universidade Estadual do Norte Fluminense Darcy Ribeiro (UENF). 
+
+O sistema tem como objetivo principal viabilizar a visualização e análise de dados epidemiológicos provenientes do Sistema de Informação de Agravos de Notificação (SINAN), operando através de uma plataforma web com forte ênfase na interatividade espacial e na clareza das informações.
+
+\section{Arquitetura do Sistema}
+Para garantir modularidade, segurança e desempenho, foi adotada uma arquitetura dividida em três camadas principais: Front-end, Back-end Principal (Java) e Serviço Especializado de Dados (Python).
+
+\begin{regra}[Fluxo Central de Comunicação]
+O Front-end nunca fará requisições diretas ao serviço Python ou ao Banco de Dados. Todo o fluxo de dados, autenticação e autorização será orquestrado pelo Back-end em Java.
+\end{regra}
+
+\subsection{Componentes da Arquitetura}
+\begin{enumerate}
+    \item \textbf{Front-end (Aplicação Web):} Responsável pela interface do usuário e pelas interações com os mapas.
+    \item \textbf{Back-end Principal (Java + Spring Boot):} Atua como o maestro do sistema. Suas responsabilidades incluem:
+    \begin{itemize}
+        \item Gerenciamento de Autenticação e Autorização de usuários.
+        \item Conexão primária e exclusiva com o banco de dados PostgreSQL.
+        \item Recepção de requisições do front-end e comunicação restrita com o serviço Python.
+    \end{itemize}
+    \item \textbf{Serviço de Processamento de Dados (Python):} Microsserviço isolado encarregado especificamente de baixar, processar e tratar os dados do SINAN através da biblioteca \texttt{pySUS}. Este serviço atende única e exclusivamente às chamadas internas feitas pelo servidor Java.
+    \item \textbf{Banco de Dados (PostgreSQL):} Responsável pelo armazenamento persistente de credenciais, logs e eventuais consolidações de dados.
+\end{enumerate}
+
+\section{Escopo de Interface e Interação Visual}
+O escopo inicial do front-end é focado na exploração geográfica dos dados através de mapas interativos, operando no formato de ``drill-down'' (aproximação sucessiva).
+
+\subsection{Regras de Navegação no Mapa}
+O mapa interativo possuirá comportamento reativo (hover) em todas as camadas de visualização e seguirá o fluxo abaixo:
+
+\begin{explicacao}[Nível 1: Regiões do Brasil]
+O mapa inicial exibe o Brasil subdividido em 5 grandes regiões. Apenas a \textbf{Região Sudeste} possuirá dados reais e estará habilitada para aprofundamento.
+\end{explicacao}
+
+\begin{explicacao}[Nível 2: Estados do Sudeste]
+Ao clicar na Região Sudeste, a visualização se expande. Os estados da região tornam-se selecionáveis, porém apenas o \textbf{Rio de Janeiro (RJ)} conterá dados alimentados para prosseguir.
+\end{explicacao}
+
+\begin{explicacao}[Nível 3: Municípios do Rio de Janeiro]
+Ao clicar no RJ, o mapa expande novamente exibindo seus municípios. Nesta versão inicial, a seleção e visualização de dados estarão restritas às seguintes cidades:
+\begin{itemize}
+    \item Campos dos Goytacazes
+    \item Macaé
+    \item São João da Barra
+    \item Itaperuna
+\end{itemize}
+\end{explicacao}
+
+\section{Considerações Tecnológicas do Front-end}
+O escopo define a tecnologia do Back-end, no entanto, a escolha para o Front-end encontra-se em fase de avaliação estratégica entre desempenho bruto e velocidade de entrega.
+
+\begin{regra}[Decisão Tecnológica do Front-end]
+A escolha final deve ponderar a capacidade da equipe de entregar o sistema no prazo contra a performance necessária para lidar com o processamento de camadas vetoriais do mapa.
+\end{regra}
+
+\subsection{Opção A: Desempenho e Segurança (Rust + Dioxus)}
+O uso da linguagem Rust com o framework Dioxus proporciona uma aplicação WebAssembly (Wasm) ou nativa extremamente otimizada, reduzindo o uso de memória no navegador cliente e aumentando consideravelmente a fluidez das transições de renderização vetorial.
+
+\subsection{Opção B: Agilidade e Ecossistema (TanStack + React + Tailwind CSS)}
+Devido à restrição de tempo, a stack baseada em React oferece a vantagem da vasta disponibilidade de componentes e bibliotecas prontas (ex: React Simple Maps, Leaflet). O gerenciamento de estados assíncronos seria tratado eficientemente com TanStack Query, enquanto a estilização ganharia agilidade através de utilitários do Tailwind CSS.
+
+\section{Modelagem Preliminar de Dados}
+A comunicação primária de persistência se dará via PostgreSQL, gerenciado pela aplicação Java.
+
+\begin{entidade}{usuarios\_sistema}
+\campo{id\_usuario}{uuid}{PK}
+\campo{nome\_completo}{varchar(150)}{}
+\campo{email}{varchar(100)}{UNIQUE}
+\campo{senha\_hash}{varchar(255)}{}
+\campo{nivel\_acesso}{varchar(20)}{}
+\campo{data\_criacao}{timestamp}{}
+\end{entidade}
+
+\begin{entidade}{cache\_sinan}
+\campo{id\_registro}{bigint}{PK}
+\campo{codigo\_municipio}{varchar(10)}{FK (ibge)}
+\campo{agravo}{varchar(100)}{}
+\campo{competencia}{date}{}
+\campo{total\_casos}{integer}{}
+\end{entidade}
+
+\vspace{1cm}
+\begin{center}
+\textit{Documento gerado como planejamento técnico preliminar para alinhamento da equipe de desenvolvimento.}
+\end{center}
+
+\end{document}
+
