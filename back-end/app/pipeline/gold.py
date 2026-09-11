@@ -4,7 +4,8 @@ from pathlib import Path
  
 import pandas as pd
  
-from .columns import CATALOG
+from .atomic_io import write_parquet_atomic
+from .columns import CATALOG, validate_keys
  
 MUNICIPIOS_RJ = {
     "3301009": "Campos dos Goytacazes",
@@ -19,6 +20,7 @@ def aggregate(
     selected_columns: list[str] | None = None,
     municipios: dict[str, str] | None = None,
 ) -> pd.DataFrame:
+    selected_columns = validate_keys(selected_columns)
     municipios = municipios if municipios is not None else MUNICIPIOS_RJ
  
     required = {"DT_NOTIFIC", "ID_MUNICIP", "SG_UF_NOT", "NM_UF"}
@@ -28,8 +30,8 @@ def aggregate(
  
     extra_group_cols = [
         CATALOG[key].source_column
-        for key in (selected_columns or [])
-        if key in CATALOG and CATALOG[key].groupable and CATALOG[key].source_column in df.columns
+        for key in selected_columns
+        if CATALOG[key].groupable and CATALOG[key].source_column in df.columns
     ]
  
     work = df.copy()
@@ -66,7 +68,5 @@ def aggregate_file(
 ) -> Path:
     df = pd.read_parquet(source)
     result = aggregate(df, selected_columns, municipios)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    result.to_parquet(destination, index=False)
-    return destination
+    return write_parquet_atomic(result, destination)
  

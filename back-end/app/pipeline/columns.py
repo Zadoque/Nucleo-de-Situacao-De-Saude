@@ -8,10 +8,11 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class ColumnSpec:
-    label: str                 
-    source_column: str          
+    label: str
+    source_column: str
     required: bool = False      
     groupable: bool = False     
+    dedup_key: bool = False     
     transform: Optional[Callable[[pd.Series], pd.Series]] = None
 
 
@@ -27,6 +28,10 @@ def _zfill_uf(series: pd.Series) -> pd.Series:
     return series.astype("string").str.replace(r"\.0$", "", regex=True).str.zfill(2)
 
 
+def _clean_id(series: pd.Series) -> pd.Series:
+    return series.astype("string").str.replace(r"\.0$", "", regex=True)
+
+
 CATALOG: dict[str, ColumnSpec] = {
     "data_notificacao": ColumnSpec(
         "Data de notificação", "DT_NOTIFIC", required=True, transform=_to_date
@@ -36,6 +41,10 @@ CATALOG: dict[str, ColumnSpec] = {
     ),
     "uf": ColumnSpec(
         "UF de notificação", "SG_UF_NOT", required=True, transform=_zfill_uf
+    ),
+    "notificacao_id": ColumnSpec(
+        "Identificador da notificação", "NU_NOTIFIC",
+        dedup_key=True, transform=_clean_id,
     ),
 
     "semana_notificacao": ColumnSpec("Semana epidemiológica", "SEM_NOT", groupable=True),
@@ -51,10 +60,33 @@ def required_keys() -> list[str]:
     return [key for key, spec in CATALOG.items() if spec.required]
 
 
-def resolve(selected_keys: list[str]) -> list[str]:
-    unknown = set(selected_keys) - set(CATALOG)
+def dedup_key_columns() -> list[str]:
+    cols = [spec.source_column for spec in CATALOG.values() if spec.dedup_key]
+    if not cols:
+        raise RuntimeError("Nenhuma coluna marcada como dedup_key no catálogo")
+    return cols
+
+
+def resolve_dedup_strategy(available_columns: set[str]) -> tuple[list[str], bool]:
+    primary = dedup_key_columns()
+    if all(col in available_columns for col in primary):
+        return primary, True
+
+    fallback = [
+        spec.source_column
+        for spec in CATALOG.values()
+        if spec.source_column in available_columns
+    ]
+    return fallback, False
+
+
+def present_keys(available_columns: set[str]) -> list[str]:
+    return [key for key, spec in CATALOG.items() if spec.source_column in available_columns]
+
+
+def validate_keys(selected_keys: list[str]) -> list[str]:
+    keys = list(selected_keys or [])
+    unknown = set(keys) - set(CATALOG)
     if unknown:
         raise ValueError(f"Colunas desconhecidas ou não permitidas: {sorted(unknown)}")
-
-    wanted = set(required_keys()) | set(selected_keys)
-    return [key for key in CATALOG if key in wanted]
+    return keys

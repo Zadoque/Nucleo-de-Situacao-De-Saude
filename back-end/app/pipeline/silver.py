@@ -1,13 +1,13 @@
 from __future__ import annotations
- 
+
+import warnings
 from pathlib import Path
- 
+
 import pandas as pd
 
-import argparse
- 
-from .columns import CATALOG, resolve
- 
+from .atomic_io import write_parquet_atomic
+from .columns import CATALOG, present_keys, required_keys, resolve_dedup_strategy
+
 UF_CODES = {
     "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
     "17": "TO", "21": "MA", "22": "PI", "23": "CE", "24": "RN", "25": "PB",
@@ -24,60 +24,63 @@ UF_NAMES = {
     "RS": "Rio Grande do Sul", "MS": "Mato Grosso do Sul", "MT": "Mato Grosso",
     "GO": "Goiás", "DF": "Distrito Federal",
 }
- 
-def transform(df: pd.DataFrame, year: int, selected_columns: list[str] | None = None) -> pd.DataFrame:
-    keys = resolve(selected_columns or [])
+
+
+def transform(df: pd.DataFrame, year: int) -> pd.DataFrame:
+    available = set(df.columns)
+
+    missing_required = [
+        CATALOG[key].source_column for key in required_keys()
+        if CATALOG[key].source_column not in available
+    ]
+    if missing_required:
+        raise ValueError(
+            "Colunas obrigatórias do SINAN ausentes neste dataset: "
+            f"{missing_required}. Colunas realmente disponíveis: {sorted(available)}"
+        )
+
+    keys = present_keys(available)
     source_columns = [CATALOG[key].source_column for key in keys]
- 
-    missing = [col for col in source_columns if col not in df.columns]
-    if missing:
-        raise ValueError(f"Colunas SINAN ausentes: {missing}")
- 
+
     out = df[source_columns].copy()
- 
+
     for key in keys:
         spec = CATALOG[key]
         if spec.transform is not None:
             out[spec.source_column] = spec.transform(out[spec.source_column])
- 
+
     out = out.dropna(subset=["DT_NOTIFIC"])
     out = out[out["DT_NOTIFIC"].dt.year == year]
- 
+
     out["UF"] = out["SG_UF_NOT"].map(UF_CODES)
     out["NM_UF"] = out["UF"].map(UF_NAMES)
- 
-    out = out.drop_duplicates(subset=source_columns, keep="last")
+
+    dedup_cols, used_primary_key = resolve_dedup_strategy(available)
+    if not used_primary_key:
+        warnings.warn(
+            "Chave de negócio (NU_NOTIFIC) ausente neste dataset SINAN; "
+            f"deduplicando por correspondência exata em {dedup_cols}. "
+            "Isso é mais fraco que uma chave real: notificações distintas "
+            "porém idênticas em todos os campos capturados serão tratadas "
+            "como duplicata.",
+            stacklevel=2,
+        )
+    out = out.drop_duplicates(subset=dedup_cols, keep="last")
     return out
- 
- 
-def transform_file(
-    source: Path,
-    destination: Path,
-    year: int,
-    selected_columns: list[str] | None = None,
-) -> Path:
+
+
+def transform_file(source: Path, destination: Path, year: int) -> Path:
     df = pd.read_parquet(source)
-    result = transform(df, year, selected_columns)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    result.to_parquet(destination, index=False)
-    return destination
+    result = transform(df, year)
+    return write_parquet_atomic(result, destination)
+
 
 if __name__ == "__main__":
+    import argparse
+
     parser = argparse.ArgumentParser(description="Transforma SINAN da camada Bronze para Silver")
     parser.add_argument("--source", required=True, type=Path, help="Arquivo Parquet de entrada (Bronze)")
     parser.add_argument("--destination", required=True, type=Path, help="Arquivo Parquet de saída (Silver)")
     parser.add_argument("--year", required=True, type=int, help="Ano de referência para filtrar DT_NOTIFIC")
-    parser.add_argument(
-        "--columns",
-        default="",
-        help=f"Chaves separadas por vírgula, dentre: {', '.join(CATALOG)}",
-    )
-
     args = parser.parse_args()
-    selected = [c.strip() for c in args.columns.split(",") if c.strip()]
-    transform_file(
-        source=args.source,
-        destination=args.destination,
-        year=args.year,
-        selected_columns=selected
-    )
+    transform_file(source=args.source, destination=args.destination, year=args.year)
