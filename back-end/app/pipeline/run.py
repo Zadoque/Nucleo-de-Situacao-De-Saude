@@ -5,7 +5,7 @@ from pathlib import Path
  
 from .columns import CATALOG
 from .gold import aggregate_file
-from .sinan import fetch_sinan, write_bronze
+from .sinan import fetch_sinan, write_bronze 
 from .silver import transform_file
  
 BASE_DIR = Path("/data")
@@ -22,7 +22,7 @@ def run(disease: str, year: int, selected_columns: list[str] | None = None) -> N
         BASE_DIR / "silver" / "sinan" / f"disease={disease.lower()}"
         / f"year={year}" / "data.parquet"
     )
-    transform_file(bronze, silver, year, selected_columns)
+    transform_file(bronze, silver, year)
  
     gold = (
         BASE_DIR / "gold" / "sinan" / f"disease={disease.lower()}"
